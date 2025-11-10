@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Recycling View Performance Check</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        margin: 0;
+        padding: 20px;
+        background: #f5f5f5;
+      }
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        margin-top: 0;
+        color: #333;
+      }
+      .nav {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+        padding-bottom: 20px;
+        border-bottom: 2px solid #eee;
+      }
+      .nav a {
+        padding: 10px 20px;
+        background: #007bff;
+        color: white;
+        text-decoration: none;
+        border-radius: 4px;
+        transition: background 0.2s;
+      }
+      .nav a:hover {
+        background: #0056b3;
+      }
+      .nav a.active {
+        background: #0056b3;
+      }
+      #app {
+        min-height: 400px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Recycling View Performance Check</h1>
+      <nav class="nav">
+        <a href="/" data-route="home">홈</a>
+        <a href="/full" data-route="full">Full Render</a>
+        <a href="/virtual" data-route="virtual">Virtual Scroller</a>
+      </nav>
+      <div id="app"></div>
+    </div>
+    <script type="module" src="/main.ts"></script>
+  </body>
+</html>
+
