@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>브라우저 렌더링 파이프라인 & Virtual Scroll 성능 해설</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --card: #111827;
+      --muted: #94a3b8;
+      --text: #e5e7eb;
+      --accent: #60a5fa;
+      --good: #34d399;
+      --bad: #f87171;
+      --warn: #fbbf24;
+      --table-border: #1f2937;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, Apple Color Emoji, Segoe UI Emoji;
+      line-height: 1.6;
+      color: var(--text);
+      background: radial-gradient(1200px 800px at 10% 10%, #0f172a 0%, var(--bg) 45%);
+      padding: 32px 20px 80px;
+    }
+    .container { max-width: 1040px; margin: 0 auto; }
+    h1, h2, h3 { line-height: 1.2; margin: 0 0 12px; }
+    h1 { font-size: 34px; letter-spacing: -0.02em; }
+    h2 { font-size: 22px; margin-top: 26px; }
+    p.lead { color: var(--muted); margin-top: 6px; }
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.02));
+      border: 1px solid #1f2937;
+      border-radius: 16px;
+      padding: 20px;
+      margin-top: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+      backdrop-filter: blur(6px);
+    }
+    pre.ascii {
+      background: #0a0f18;
+      border: 1px solid #162033;
+      border-radius: 12px;
+      padding: 16px;
+      overflow: auto;
+      color: #cbd5e1;
+      font-size: 14px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      border: 1px solid var(--table-border);
+      overflow: hidden;
+      border-radius: 12px;
+    }
+    th, td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--table-border);
+      vertical-align: top;
+    }
+    thead th {
+      background: #0f172a;
+      color: #d1d5db;
+      text-align: left;
+      font-weight: 700;
+    }
+    tbody tr:nth-child(odd) td { background: rgba(255,255,255,0.02); }
+    .pill {
+      display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px;
+      border: 1px solid #1f2937; background: #0f172a; color: #cbd5e1;
+    }
+    .good { color: var(--good); }
+    .bad { color: var(--bad); }
+    .accent { color: var(--accent); }
+    .muted { color: var(--muted); }
+    .kbd {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      background: #0d1320; border: 1px solid #1f2937; padding: 2px 6px; border-radius: 6px;
+      color: #cbd5e1; font-size: 12px;
+    }
+    .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+    .footer { margin-top: 28px; color: var(--muted); font-size: 12px; text-align: right; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>브라우저 렌더링 파이프라인 &amp; Virtual Scroll 성능 해설</h1>
+      <p class="lead">“빠른 초기 로드 + 부드러운 인터랙션”을 만드는 핵심 원리 정리</p>
+    </header>
+
+    <section class="card">
+      <h2>🧩 브라우저 렌더링 파이프라인</h2>
+      <pre class="ascii">HTML → DOM Tree
+CSS  → CSSOM Tree
+        ↓
+  [1] Recalculate Style
+        ↓
+  [2] Layout (UpdateLayoutTree)
+        ↓
+  [3] Paint
+        ↓
+  [4] Composite Layers → GPU Memory
+        ↓
+  [5] Frame Output (FPS)</pre>
+    </section>
+
+    <section class="card">
+      <h2>⚙️ 각 지표와 렌더링 단계 매핑</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>렌더링 단계</th>
+            <th>대응 지표</th>
+            <th>개념</th>
+            <th>성능 영향</th>
+            <th>Virtual Scroll 개선 포인트</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>1️⃣ Recalculate Style</b></td>
+            <td>(직접 측정 X)</td>
+            <td>CSS 규칙을 다시 계산해 각 요소에 적용</td>
+            <td>DOM이 많을수록 지연 발생</td>
+            <td>화면 내 최소 DOM만 유지하여 스타일 계산 최소화</td>
+          </tr>
+          <tr>
+            <td><b>2️⃣ Layout (UpdateLayoutTree)</b></td>
+            <td><span class="good">52.3ms → 6.3ms</span></td>
+            <td>요소의 크기와 위치 계산</td>
+            <td>CPU 집약적, 16ms 초과 시 프레임 드랍</td>
+            <td>화면 일부만 Layout → <b class="good">88% 비용 절감</b></td>
+          </tr>
+          <tr>
+            <td><b>3️⃣ Paint</b></td>
+            <td><span class="good">3.8ms → 1.9ms</span></td>
+            <td>요소를 실제 픽셀로 렌더링</td>
+            <td>GPU 사용량 증가, Paint Overdraw 시 성능 저하</td>
+            <td>가시 영역만 Paint → <b class="good">50% 비용 절감</b></td>
+          </tr>
+          <tr>
+            <td><b>4️⃣ Composite Layers / GPU Memory</b></td>
+            <td><span class="good">40.9MB → 6.5MB</span></td>
+            <td>여러 레이어를 합성하여 최종 화면 생성</td>
+            <td>VRAM 과다 시 context loss, 렌더링 지연</td>
+            <td>레이어 수 최소화 → <b class="good">메모리 1/6</b></td>
+          </tr>
+          <tr>
+            <td><b>5️⃣ Frame Output / FPS</b></td>
+            <td>~50fps → <b class="good">~60fps</b></td>
+            <td>초당 프레임 수</td>
+            <td>FPS 낮으면 끊김(jank), input delay</td>
+            <td>안정적인 60fps로 부드러운 스크롤 유지</td>
+          </tr>
+          <tr>
+            <td><b>(보조) Layout Count</b></td>
+            <td>3 → 16</td>
+            <td>Layout 재계산 빈도</td>
+            <td>빈도↑는 위험하지만, 영역이 작으면 부담↓</td>
+            <td>“자주 하지만 가볍게” 수행 → 전체 부하 절감</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>🎯 시각적 요약</h2>
+      <div class="grid">
+        <div>
+          <h3>Full Render</h3>
+          <pre class="ascii">Recalc Style: 전체 DOM 계산
+Layout: 52ms  ────────────────▒▒▒▒▒▒▒▒▒▒▒
+Paint: 3.8ms ─────▒▒▒▒▒▒▒▒▒▒▒
+Composite: GPU 40MB
+FPS: 50 (약간의 jank)</pre>
+        </div>
+        <div>
+          <h3>Virtual Scroll</h3>
+          <pre class="ascii">Recalc Style: 화면 내 DOM만 계산
+Layout: 6ms ─▒▒▒▒▒
+Paint: 1.9ms ─▒▒
+Composite: GPU 6MB
+FPS: 60 (부드러운 스크롤)</pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>🚀 요약 해석</h2>
+      <p>
+        Virtual Scroll은 브라우저 렌더링 파이프라인 중 가장 비용이 큰 <span class="kbd">Layout</span>, 
+        <span class="kbd">Paint</span>, <span class="kbd">Composite</span> 단계를 최적화한다. 
+        DOM을 줄이고, GPU 레이어 수를 최소화함으로써 CPU/GPU 모두에서 병목이 사라지고 FPS가 안정적으로 유지된다. 
+        즉, 렌더링 파이프라인 전체의 효율을 높여 <b>빠른 초기 로드</b>와 <b>부드러운 인터랙션</b>을 동시에 달성한 구조다.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>지표별 상세 해설</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>지표</th>
+            <th>개념</th>
+            <th>성능 영향</th>
+            <th>결과 해석</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>UpdateLayoutTree (레이아웃 계산 시간)</b></td>
+            <td>DOM과 CSSOM을 조합해 Layout Tree를 재계산하는 단계</td>
+            <td>Layout이 길면 CPU 부하 증가, 스크롤/애니메이션 jank</td>
+            <td>Full 52.3ms(프레임 16.7ms 초과) vs Virtual 6.3ms → 즉각 반응</td>
+          </tr>
+          <tr>
+            <td><b>평균 Paint (그리기 시간)</b></td>
+            <td>Layout 후 픽셀 렌더링 및 GPU 전송</td>
+            <td>Paint가 길면 발열/배터리 소모 증가</td>
+            <td>Virtual이 50% 절감 → 스크롤 중 화면 갱신 부드러움 향상</td>
+          </tr>
+          <tr>
+            <td><b>GPU Memory (그래픽 메모리)</b></td>
+            <td>레이어 텍스처가 사용하는 VRAM</td>
+            <td>VRAM 과다 시 context loss/지연 위험</td>
+            <td>6.5MB(virtual) vs 40.9MB(full) → 모바일/저사양에 유리</td>
+          </tr>
+          <tr>
+            <td><b>Frame Count</b></td>
+            <td>측정 구간 내 생성된 프레임 총수</td>
+            <td>많을수록 FPS↑, 스크롤 매끄러움</td>
+            <td>Virtual 33 vs Full 28 → 루프 안정성 우수</td>
+          </tr>
+          <tr>
+            <td><b>FPS</b></td>
+            <td>초당 프레임 수(60fps ≈ 16.7ms/프레임)</td>
+            <td>낮으면 시각적 끊김과 입력 지연 발생</td>
+            <td>Virtual ~60fps, Full ~50fps → 체감 UX 차이 큼</td>
+          </tr>
+          <tr>
+            <td><b>LayoutCount</b></td>
+            <td>스크롤 중 Layout 재계산 빈도</td>
+            <td>빈도↑는 위험하나, 영역이 작으면 비용↓</td>
+            <td>Virtual 16회(소범위) vs Full 3회(대범위)</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <div class="footer">
+      Generated at: <span id="now"></span>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('now').textContent = new Date().toLocaleString();
+  </script>
+</body>
+</html>
