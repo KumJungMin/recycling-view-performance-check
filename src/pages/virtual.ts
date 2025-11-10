@@ -17,7 +17,7 @@ export function renderVirtual(container: HTMLElement) {
 
   new VirtualScroller(listContainer, {
     data,
-    itemHeight: 100,
+    itemHeight: 40,
     itemClass: 'item',
     renderItem: (item) => {
       const div = document.createElement('div')

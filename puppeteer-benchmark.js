@@ -2,20 +2,7 @@ import puppeteer from 'puppeteer'
 
 const SERVER = 'http://localhost:5173'
 
-interface Metrics {
-  JSHeapUsedSize?: number
-  Nodes?: number
-  LayoutCount?: number
-  ScriptDuration?: number
-}
-
-interface BenchmarkResult {
-  label: string
-  metrics: Metrics
-  tracePath: string
-}
-
-async function measurePerformance(url: string, label: string): Promise<BenchmarkResult> {
+async function measurePerformance(url, label) {
   const browser = await puppeteer.launch({
     headless: true,
     defaultViewport: { width: 1280, height: 800 },
@@ -32,32 +19,28 @@ async function measurePerformance(url: string, label: string): Promise<Benchmark
 
   await page.goto(url, { waitUntil: 'networkidle0' })
 
-  // 초기 렌더링 완료 대기
+  // 초기 렌더링 안정화 대기
   await new Promise((resolve) => setTimeout(resolve, 1000))
 
-  await page.evaluate(async () => {
-    // @ts-expect-error - 브라우저 컨텍스트에서는 타입 어노테이션 사용 불가
-    const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-    
-    // .list 컨테이너 찾기
-    const listContainer = document.querySelector('#list')
-    if (!listContainer) {
-      throw new Error('List container not found')
+  await page.evaluate(() => {
+    function sleep(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms))
     }
 
-    // 스크롤 컨테이너의 높이 확인
+    const listContainer = document.querySelector('#list')
+    if (!listContainer) throw new Error('List container not found')
+
     const containerHeight = listContainer.clientHeight
     const scrollStep = containerHeight / 2
 
-    // 여러 번 스크롤하여 성능 측정
-    for (let i = 0; i < 10; i++) {
-      listContainer.scrollBy(0, scrollStep)
+    return (async () => {
+      for (let i = 0; i < 10; i++) {
+        listContainer.scrollBy(0, scrollStep)
+        await sleep(300)
+      }
+      listContainer.scrollTo(0, 0)
       await sleep(300)
-    }
-    
-    // 맨 위로 스크롤
-    listContainer.scrollTo(0, 0)
-    await sleep(300)
+    })()
   })
 
   await page.tracing.stop()
@@ -74,8 +57,8 @@ async function run() {
     console.log('🚀 Starting performance benchmark...')
     console.log(`📡 Server: ${SERVER}\n`)
 
-    const fullUrl = `${SERVER}/full`
-    const virtualUrl = `${SERVER}/virtual`
+    const fullUrl = `${SERVER}/full.html`
+    const virtualUrl = `${SERVER}/virtual.html`
 
     const full = await measurePerformance(fullUrl, 'full')
     const virtual = await measurePerformance(virtualUrl, 'virtual')
@@ -117,4 +100,3 @@ async function run() {
 }
 
 run()
-

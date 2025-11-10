@@ -6,7 +6,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "benchmark": "tsx puppeteer-benchmark.ts"
+    "benchmark": "node puppeteer-benchmark.js"
   },
   "dependencies": {
     "puppeteer": "^23.1.0"
