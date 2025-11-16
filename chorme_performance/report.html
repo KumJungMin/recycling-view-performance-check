@@ -3,19 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <title>Virtual Scroll Performance Report</title>
+
+    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Chart.js DataLabels Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+
     <style>
       body {
         font-family: system-ui, sans-serif;
         background: #fafafa;
         margin: 40px;
       }
-      h1 {
-        text-align: center;
-      }
-      section {
-        margin-top: 40px;
-      }
+      h1 { text-align: center; }
+      section { margin-top: 40px; }
       canvas {
         max-width: 800px;
         margin: 0 auto;
@@ -31,31 +33,34 @@
         padding: 10px;
         text-align: center;
       }
-      th {
-        background: #f3f3f3;
-      }
+      th { background: #f3f3f3; }
     </style>
   </head>
+
   <body>
     <h1>Virtual Scroll Performance Report</h1>
     <p style="text-align:center;">측정 시나리오: 페이지 로드 → 스크롤 동작 (Full vs Virtual Scroll)</p>
     <p style="text-align:center;">날짜: <span id="date"></span></p>
 
+    <!-- (1) Layout / Paint -->
     <section>
       <h2>1️⃣ Layout / Paint Time</h2>
       <canvas id="layoutPaintChart"></canvas>
     </section>
 
+    <!-- (2) GPU / FPS -->
     <section>
       <h2>2️⃣ GPU Memory / FPS</h2>
       <canvas id="gpuFpsChart"></canvas>
     </section>
 
+    <!-- (3) Frame & Layout -->
     <section>
       <h2>3️⃣ Frame & Layout Count</h2>
       <canvas id="frameLayoutChart"></canvas>
     </section>
 
+    <!-- (4) Summary table -->
     <section>
       <h2>4️⃣ Summary Table</h2>
       <table>
@@ -78,21 +83,23 @@
       </table>
     </section>
 
-    <section>
-      <h2>5️⃣ 결론 요약</h2>
-      <p style="max-width:800px; margin:auto; line-height:1.6;">
-        Virtual Scroll은 초기 렌더링 시 LayoutTree 계산 시간을 8배 단축하고, Paint 비용을 40~50% 절감했다.
-        GPU 메모리 사용량은 Full Render의 약 1/6 수준이며, FPS는 60 근처로 안정적으로 유지된다.
-        스크롤 중 Layout 이벤트가 많지만 각 Layout의 범위가 작기 때문에 성능 저하는 거의 없으며,
-        전체적으로 “부드러운 스크롤”과 “낮은 렌더링 부하”를 동시에 달성했다.
-      </p>
-    </section>
-
+    <!-- Script -->
     <script>
-      document.getElementById("date").textContent = new Date().toLocaleString()
+      document.getElementById("date").textContent = new Date().toLocaleString();
 
-      const layoutPaintCtx = document.getElementById('layoutPaintChart');
-      new Chart(layoutPaintCtx, {
+      // 🔧 공통 옵션 (모든 차트에 label 표시)
+      const dataLabelOptions = {
+        color: '#000',
+        anchor: 'end',
+        align: 'top',
+        font: { weight: 'bold' },
+        formatter: (value) => value
+      };
+
+      /* --------------------------
+       * 1) Layout / Paint 차트
+       * -------------------------- */
+      new Chart(document.getElementById('layoutPaintChart'), {
         type: 'bar',
         data: {
           labels: ['UpdateLayoutTree (ms)', 'Paint Avg (ms)'],
@@ -111,12 +118,18 @@
         },
         options: {
           responsive: true,
-          plugins: { legend: { position: 'top' } },
+          plugins: {
+            legend: { position: 'top' },
+            datalabels: dataLabelOptions
+          },
         },
+        plugins: [ChartDataLabels]
       });
 
-      const gpuFpsCtx = document.getElementById('gpuFpsChart');
-      new Chart(gpuFpsCtx, {
+      /* --------------------------
+       * 2) GPU / FPS 차트
+       * -------------------------- */
+      new Chart(document.getElementById('gpuFpsChart'), {
         type: 'bar',
         data: {
           labels: ['GPU Memory (MB)', 'FPS'],
@@ -133,10 +146,18 @@
             },
           ],
         },
+        options: {
+          plugins: {
+            datalabels: dataLabelOptions
+          }
+        },
+        plugins: [ChartDataLabels]
       });
 
-      const frameLayoutCtx = document.getElementById('frameLayoutChart');
-      new Chart(frameLayoutCtx, {
+      /* --------------------------
+       * 3) Frame & Layout Count
+       * -------------------------- */
+      new Chart(document.getElementById('frameLayoutChart'), {
         type: 'bar',
         data: {
           labels: ['Frame Count', 'Layout Count'],
@@ -153,6 +174,12 @@
             },
           ],
         },
+        options: {
+          plugins: {
+            datalabels: dataLabelOptions
+          }
+        },
+        plugins: [ChartDataLabels]
       });
     </script>
   </body>
